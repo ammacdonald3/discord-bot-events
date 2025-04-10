@@ -1,0 +1,4 @@
+requests
+ics
+python-dotenv
+tzdata
