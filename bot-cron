@@ -1,0 +1,8 @@
+# /etc/cron.d/bot-cron: crontab fragment for the bot
+
+# Run the bot script daily at 8:00 AM container time
+# Output and errors are redirected to the container's stdout/stderr for Docker logs
+# Ensure environment variables from docker-compose are available
+# Adding an empty line at the end is required by cron
+0 8 * * * root python /app/bot.py >> /proc/1/fd/1 2>/proc/1/fd/2
+

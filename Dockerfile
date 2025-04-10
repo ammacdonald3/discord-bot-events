@@ -1,14 +1,13 @@
 # Use an official Python runtime as a parent image
-# Using -slim reduces the image size
-FROM python:3.11-slim
+# Using -slim-bookworm which is Debian based and makes installing cron easier
+FROM python:3.11-slim-bookworm
 
 # Set the working directory in the container
 WORKDIR /app
 
-# Install system dependencies required by tzdata (needed on some base images)
-# RUN apt-get update && apt-get install -y --no-install-recommends tzdata && rm -rf /var/lib/apt/lists/*
-# Note: The line above might be needed if you encounter timezone issues inside the container.
-# The python:3.11-slim image often includes necessary tzdata components, so try without it first.
+# Install cron and remove cache
+RUN apt-get update && apt-get install -y --no-install-recommends cron \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy the requirements file into the container at /app
 COPY requirements.txt .
@@ -21,14 +20,11 @@ RUN pip install --no-cache-dir --trusted-host pypi.python.org -r requirements.tx
 # Copy the rest of the application code into the container at /app
 COPY bot.py .
 
-# Set environment variables needed by the script (these will be overridden at runtime)
-# It's generally better to pass these at runtime than bake them in
-# ENV CALENDAR_ICS_URL="" 
-# ENV DISCORD_WEBHOOK_URL=""
+# Copy the entrypoint script
+COPY entrypoint.sh /app/entrypoint.sh
 
-# Make port 80 available to the world outside this container (if it were a web server)
-# Not strictly necessary for this script, but good practice if it evolved.
-# EXPOSE 80
+# Make the entrypoint script executable
+RUN chmod +x /app/entrypoint.sh
 
-# Define the command to run your app using CMD which defines the default command
-CMD ["python", "bot.py"]
+# Run the entrypoint script on container startup
+CMD ["/app/entrypoint.sh"]
