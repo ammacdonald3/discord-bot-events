@@ -1,0 +1,20 @@
+# Ignore virtual environment if present
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore Git directory
+.git/
+
+# Ignore environment file (should be mounted or passed at runtime)
+.env
+
+# Ignore Docker related files if necessary (though usually fine to include)
+# Dockerfile
+# .dockerignore
+
+# OS specific files
+.DS_Store
+Thumbs.db
