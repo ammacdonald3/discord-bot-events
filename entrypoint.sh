@@ -4,8 +4,8 @@ set -e # Exit immediately if a command exits with a non-zero status.
 # Default cron schedule (e.g., daily at 8 AM) if CRON_SCHEDULE is not set
 CRON_SCHEDULE=${CRON_SCHEDULE:="0 8 * * *"}
 
-# The command to be executed by cron
-COMMAND="python /app/bot.py >> /proc/1/fd/1 2>/proc/1/fd/2"
+# The command to be executed by cron - use the full path to python
+COMMAND="/usr/local/bin/python /app/bot.py >> /proc/1/fd/1 2>/proc/1/fd/2"
 
 # Echo the cron schedule and command into the cron file
 # Note: Ensure root user runs the cron job
