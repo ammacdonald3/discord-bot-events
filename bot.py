@@ -41,40 +41,6 @@ if not CALENDAR_ICS_URL:
 if not DISCORD_WEBHOOK_URL:
     raise ValueError("Missing DISCORD_WEBHOOK_URL in .env file")
 
-def fetch_and_parse_calendar(url: str) -> Calendar | None:
-    """Fetches the iCalendar data from the given URL and parses it."""
-    try:
-        response = requests.get(url)
-        response.raise_for_status() 
-        calendar = Calendar(response.text)
-        return calendar
-    except requests.exceptions.RequestException as e:
-        print(f"Error fetching calendar URL: {e}")
-        return None
-    except Exception as e:
-        print(f"Error parsing calendar data: {e}")
-        return None
-
-def get_upcoming_events(calendar: Calendar, days: int) -> list:
-    """Filters events from the calendar that occur within the next specified number of days."""
-    now = datetime.now(timezone.utc)
-    future_limit = now + timedelta(days=days)
-    upcoming_events = []
-
-    if not calendar:
-        return upcoming_events
-
-    for event in calendar.events:
-        event_begin = event.begin
-        if event_begin.tzinfo is None:
-            event_begin = event_begin.replace(tzinfo=timezone.utc)
-
-        if now <= event_begin < future_limit:
-            upcoming_events.append(event)
-
-    upcoming_events.sort(key=lambda e: e.begin)
-    return upcoming_events
-
 # Custom HTML Parser to convert <a> to Markdown and strip other tags
 class DescriptionParser(HTMLParser):
     def __init__(self):
@@ -126,6 +92,45 @@ class DescriptionParser(HTMLParser):
             # Append text outside links directly to the result list
             self.result.append(decoded_data)
 
+# --- Function Definitions ---
+
+# Fetches and parses the iCalendar (.ics) data from a given URL.
+def fetch_and_parse_calendar(url: str) -> Calendar | None:
+    """Fetches the iCalendar data from the given URL and parses it."""
+    try:
+        response = requests.get(url)
+        response.raise_for_status() 
+        calendar = Calendar(response.text)
+        return calendar
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching calendar URL: {e}")
+        return None
+    except Exception as e:
+        print(f"Error parsing calendar data: {e}")
+        return None
+
+# Filters events from a Calendar object to find those occurring within a specified number of days from now.
+def get_upcoming_events(calendar: Calendar, days: int) -> list:
+    """Filters events from the calendar that occur within the next specified number of days."""
+    now = datetime.now(timezone.utc)
+    future_limit = now + timedelta(days=days)
+    upcoming_events = []
+
+    if not calendar:
+        return upcoming_events
+
+    for event in calendar.events:
+        event_begin = event.begin
+        if event_begin.tzinfo is None:
+            event_begin = event_begin.replace(tzinfo=timezone.utc)
+
+        if now <= event_begin < future_limit:
+            upcoming_events.append(event)
+
+    upcoming_events.sort(key=lambda e: e.begin)
+    return upcoming_events
+
+# Formats a list of calendar events into a single string suitable for posting to Discord.
 def format_events_message(events: list, days: int) -> str:
     """Formats the list of events into a Discord-friendly message."""
     if not events:
@@ -173,11 +178,12 @@ def format_events_message(events: list, days: int) -> str:
             parser.feed(event.description)
             # Join the parts from the parser
             processed_string = "".join(parser.result)
-            # Replace original newlines with spaces, then placeholder BRs with actual newlines
+            # Replace original newlines with spaces
             desc_no_orig_nl = processed_string.replace('\r\n', ' ').replace('\n', ' ')
-            desc_with_br_nl = desc_no_orig_nl.replace('{{BR}}', '\n')
-            # Final whitespace cleanup
-            clean_desc = re.sub(r'\s+', ' ', desc_with_br_nl).strip()
+            # Collapse multiple spaces FIRST
+            desc_cleaned_spaces = re.sub(r'\s+', ' ', desc_no_orig_nl).strip()
+            # THEN replace placeholder BRs with actual newlines
+            clean_desc = desc_cleaned_spaces.replace('{{BR}}', '\n')
             # --- Description Processing using HTMLParser --- End ---
 
             # Split into lines based on the newlines added from <br>
@@ -194,7 +200,14 @@ def format_events_message(events: list, days: int) -> str:
                 # Add newline separator between title and description block
                 final_message += "\n"
                 for j, line in enumerate(cleaned_lines):
-                    final_message += f"> _{line}_"
+                    # Check if the line is already a markdown link
+                    # Simple check: starts with '[' and ends with ')' plus optional angle brackets for URL
+                    if line.startswith('[') and line.endswith(')'):
+                        # Apply only blockquote, no italics
+                        final_message += f"> {line}"
+                    else:
+                        # Apply blockquote and italics
+                        final_message += f"> _{line}_"
                     # Add newline after each description line except the last one
                     if j < len(cleaned_lines) - 1:
                         final_message += "\n"
@@ -202,8 +215,9 @@ def format_events_message(events: list, days: int) -> str:
     # Return the fully constructed message, stripping any edge whitespace
     return final_message.strip()
 
+# Sends a formatted message payload to the specified Discord webhook URL.
 def send_to_webhook(webhook_url: str, message: str):
-    """Sends the formatted message to the specified Discord webhook URL."""
+    """Sends the message payload to the Discord webhook."""
     if not message:
         print("No message content to send.")
         return
@@ -224,6 +238,7 @@ def send_to_webhook(webhook_url: str, message: str):
     except Exception as e:
         print(f"An unexpected error occurred while sending webhook message: {e}")
 
+# Main execution function: fetches calendar, gets upcoming events, formats message, and sends to Discord.
 def main():
     """Main function to fetch calendar, format events, and send to webhook."""
     calendar = fetch_and_parse_calendar(CALENDAR_ICS_URL)
